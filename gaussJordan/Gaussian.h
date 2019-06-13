@@ -1,13 +1,3 @@
-/************************************************************************/
-// Author: Jason Lowden
-// Date: March 30, 2012
-// Course: 0306-724 - High Performance Architectures
-//
-// File: Gaussian.h
-// The purpose of this program is to compare Gaussian Elimination on the
-// GPU and CPU.
-/************************************************************************/
-
 #ifndef __GAUSSIAN_H__
 #define __GAUSSIAN_H__
 

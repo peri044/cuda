@@ -141,14 +141,8 @@ bool GaussianEliminationGPU(float** matrix, unsigned int numberOfRows, unsigned 
 		cudaMemcpy(outputMatrix[r], &out[r*numberOfColumns],
 			numberOfColumns*sizeof(float), cudaMemcpyDeviceToHost);
 	}
-	// for (int r = 0; r < numberOfRows; r++){
-	// 	for (int c = 0; c < numberOfColumns; c++){
-	// 		printf("%f \t", outputMatrix[r][c]);
-	// 	}
-	// 	printf("\n\n");
-	// }
+	
 	status = cudaGetLastError();
-
 	error = checkForError(status, "After cudaMemcopy to host");
 	if (!error){
 		cudaFree(out);
@@ -166,7 +160,7 @@ bool checkForError(cudaError_t error, char* funcName){
 	bool success;
 	if (error != cudaSuccess){
 		success = false;
-		printf("Error at %s \n", funcName);
+		printf("Device error at %s \n", funcName);
 		printf("%s", cudaGetErrorString);
 	}
 	else{

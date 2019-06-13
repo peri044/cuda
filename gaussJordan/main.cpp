@@ -1,124 +1,112 @@
-#include <cstdlib> // malloc(), free()
-#include <ctime> // time(), clock()
+#include <ctime> // clock()
 #include <cmath> // sqrt()
 #include <iostream> // cout, stream
-#include <math.h>
-#include <string>
-#include <fstream>
-#include <iomanip>
 #include <cuda.h>
+#include <string.h>
+#include <stdlib.h>
 #include <cuda_runtime_api.h>
 #include <device_launch_parameters.h>
 #include "Gaussian.h"
 
-const unsigned int NUMROWS = 1024;
-const unsigned int NUMCOLS = 1024;
 const int ITERS = 1;
 
-
-int main(){
+int main(int argc, char **argv){
+    
+    bool debug = false;
+     
+    // 2nd argument is number of rows
+    int NUMROWS = atoi(argv[2]);
+    int NUMCOLS = NUMROWS + 1;
+    
+    const char* debug_arg = "--debug";
+    for(int i=0; i< argc; i++){
+        if (strcmp(debug_arg, argv[i])==0)
+        debug = true;
+    }
+    
 
 	clock_t start, end;
 	float tcpu, tgpu;
-	float** m = new float*[NUMROWS]; //input matrix
-	float** om = new float*[NUMROWS]; //outputmatrix
-	float** ppom = new float*[NUMROWS];
-	float** gpuom = new float*[NUMROWS];
-	//initialize m with values and allocate space for om
-	//std::cout<<"Input matrix 'm' is: "<<std::endl;
+    // Define and initialize input and output matrices for CPU and GPU 
+	float** input = new float*[NUMROWS]; 
+	float** cpu_output = new float*[NUMROWS]; 
+	float** gpu_output = new float*[NUMROWS];
+     
 	for (int i = 0; i<NUMROWS; i++){
-		m[i] = new float[NUMCOLS];
-		om[i] = new float[NUMCOLS];
-		ppom[i] = new float[NUMCOLS];
-		gpuom[i] = new float[NUMCOLS];
+		input[i] = new float[NUMCOLS];
+		cpu_output[i] = new float[NUMCOLS];
+		gpu_output[i] = new float[NUMCOLS];
 		for (int j = 0; j<NUMCOLS; j++){
-			m[i][j] = (float)rand() / ((float)RAND_MAX);
+			input[i][j] = (float)rand() / ((float)RAND_MAX);
 		}
-		//std::cout<< std::endl;
 	}
-	//std::cin.get();
-	std::cout << "Operating on a " << NUMROWS << " x " << NUMCOLS << " matrix" << std::endl;
+
+	std::cout << "Operating on a " << NUMROWS << " x " << NUMCOLS << " input matrix" << std::endl;
 	float L2norm = 0;
 	float sum = 0, delta = 0;
 	bool success;
-	bool partialPivot = true; //default is false. false = no pivoting, true = partial pivoting
-		start = clock();
+	bool partialPivot = false; //default is false. false = no pivoting, true = partial pivoting
+    
+    // Profile on CPU
+	start = clock();
 	for (int i = 0; i<ITERS; i++){
-		GaussianEliminationCPU(m, NUMROWS, NUMCOLS, ppom, partialPivot);
+		GaussianEliminationCPU(input, NUMROWS, NUMCOLS, cpu_output, partialPivot);
 	}
 	end = clock();
 	tcpu = (float)(end - start) * 1000 / (float)CLOCKS_PER_SEC / ITERS;
-	// Display the results
-	std::cout << "Host Result (partial Pivoting) took " << tcpu << " ms"
-		<< std::endl;
-	std::cout << std::endl;
-
-	// partialPivot = false;
-	// start = clock();
-	// for (int i = 0; i<ITERS; i++){
-	// 	GaussianEliminationCPU(m, NUMROWS, NUMCOLS, om, partialPivot);
-	// }
-	// end = clock();
-	// tcpu = (float)(end - start) * 1000 / (float)CLOCKS_PER_SEC / ITERS;
-	// // Display the result
-	// std::cout << "Host Result (direct) took " << tcpu << " ms" << std::endl;
-	// for (int r = 0; r<NUMROWS; r++){
-	// 	for (int c = 0; c<NUMCOLS; c++){
-	// 		delta += (ppom[r][c] - om[r][c]) * (ppom[r][c] - om[r][c]);
-	// 		sum += (ppom[r][c] * om[r][c]);
-	// 	}
-	// }
-	//
-	// L2norm = sqrt(delta / sum);
-	// std::cout << "Error: " << L2norm << std::endl << std::endl;
-
-	success = GaussianEliminationGPU(m, NUMROWS, NUMCOLS, gpuom, partialPivot);
+	
+    
+    // Warm up pass on GPU
+	success = GaussianEliminationGPU(input, NUMROWS, NUMCOLS, gpu_output, partialPivot);
 	if (!success) {
-		std::cout << "\nGaussian Elimination GPU: * Device error! * \n" << std::endl;
-		std::cin.get();
 		return 1;
 	}
-
+    // Profile on GPU
 	start = clock();
 	for (int i = 0; i<ITERS; i++){
-		GaussianEliminationGPU(m, NUMROWS, NUMCOLS, gpuom, partialPivot);
+		GaussianEliminationGPU(input, NUMROWS, NUMCOLS, gpu_output, partialPivot);
 	}
 	end = clock();
 	tgpu = (float)(end - start) * 1000 / (float)CLOCKS_PER_SEC / ITERS;
-	// Display the results
-	std::cout << "Device Result (direct) took " << tgpu << " ms" << std::endl;
+    
+    std::cout << "--------------------------------------------------------" << std::endl;
+    std::cout << "CPU Result took " << tcpu << " ms"<< std::endl;
+	std::cout << "GPU Result (direct) took " << tgpu << " ms" << std::endl;
+    std::cout << "Speed up " << tcpu / tgpu << std::endl;
+    
+    // Calculate the L2 error between CPU and GPU output
 	for (int r = 0; r<NUMROWS; r++){
 		for (int c = 0; c<NUMCOLS; c++){
-			//std::cout<<"gpuom[r][c]"<<gpuom[r][c]<<std::endl;
-			//std::cout<<"om[r][c] "<<om[r][c]<<std::endl;
-			delta += (gpuom[r][c] - ppom[r][c]) * (gpuom[r][c] - ppom[r][c]);
-			sum += (gpuom[r][c] * ppom[r][c]);
+			delta += (gpu_output[r][c] - cpu_output[r][c]) * (gpu_output[r][c] - cpu_output[r][c]);
+			sum += (gpu_output[r][c] * cpu_output[r][c]);
 		}
 	}
-	/*
-	std::cout<<"delta of gpu = "<<delta<<std::endl;
-	std::cout<<"Output matrix 'gpuom' is: "<<std::endl;
-	for(int i=0; i<NUMROWS;i++){
-	for(int j=0; j<NUMCOLS;j++){
-	std::cout<<gpuom[i][j] <<"\t";
-	}
-	std::cout<< std::endl;
-	}
-	*/
+
 	L2norm = sqrt(delta / sum);
 	std::cout << "Error: " << L2norm << std::endl << std::endl;
-	//std::cout<<"done with GPU!"<<std::endl;
-	std::cin.get();
+    std::cout << "--------------------------------------------------------" << std::endl;
+    if (debug){
+        
+        int iter = 10;
+        if (iter>NUMROWS) iter = NUMROWS;
+        std::cout << " First " << iter << " output values of CPU:" << std::endl;
+        for(int i=0; i<iter; i++)
+            std::cout << cpu_output[i][NUMCOLS-1] << " ";
+        std::cout << "\n --------------------------------------------------------" << std::endl;
+        std::cout << " First " << iter << " output values of GPU:" << std::endl;
+        for(int i=0; i<iter; i++)
+            std::cout << gpu_output[i][NUMCOLS-1] << " ";
+    }
+    std::cout << "\nFinished Gauss Jordan elimination" << std::endl;
+    // Release the memory
 	for (int i = 0; i<NUMROWS; i++){
-		delete[] om[i];
-		delete[] m[i];
-		delete[] ppom[i];
-		delete[] gpuom[i];
+		delete[] input[i];
+		delete[] cpu_output[i];
+		delete[] gpu_output[i];
 	}
-	delete[] m;
-	delete[] om;
-	delete[] ppom;
-	delete[] gpuom;
+	delete[] input;
+	delete[] cpu_output;
+	delete[] gpu_output;
 
 	return 0;
 }
