@@ -30,12 +30,4 @@ void GaussianEliminationCPU(float** matrix, unsigned int numberOfRows, unsigned 
         }
 
 	}
-		//Printing the output
-	  //printf("Final CPU output is \n");
-	  //for (int i = 0; i < numberOfRows; i++){
-	//	for (int j = 0; j < numberOfColumns; j++){
- 	//	printf("%f \t", outputMatrix[i][j]);
-	 //	}
-	 //	printf("\n\n");
-	 //}
 }
